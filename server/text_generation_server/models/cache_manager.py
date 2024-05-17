@@ -4,7 +4,7 @@ import torch
 from typing import Optional, List, Tuple
 from text_generation_server.utils.import_utils import SYSTEM
 
-BLOCK_SIZE: int = 16
+BLOCK_SIZE: int = 256
 # Will be set in warmup
 CACHE_MANAGER: Optional["CacheManager"] = None
 

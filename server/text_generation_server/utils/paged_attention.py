@@ -90,21 +90,63 @@ def attention(
         if SYSTEM == "cuda":
             from vllm._C import ops
 
-            ops.paged_attention_v1(
-                out,
+            cu_seqlen_q = torch.arange(
+                input_lengths.shape[0] + 1, device=query.device, dtype=torch.int32
+            )
+            cu_seqlen_k = torch.cat(
+                [
+                    torch.zeros(
+                        (1,), device=input_lengths.device, dtype=input_lengths.dtype
+                    ),
+                    input_lengths.cumsum(dim=-1),
+                ]
+            ).to(dtype=torch.int32)
+
+            import flash_attn_2_cuda
+
+            num_blocks, num_heads_k, bs, block_size, head_size = key_cache.shape
+            key_cache = key_cache.view(num_blocks, block_size, num_heads_k, head_size)
+            value_cache = value_cache.view(
+                num_blocks, block_size, num_heads_k, head_size
+            )
+            # import ipdb;ipdb.set_trace()
+            flash_attn_2_cuda.varlen_fwd(
                 query,
                 key_cache,
                 value_cache,
-                kv_head_mapping,
-                softmax_scale,
-                block_tables,
-                input_lengths,
-                block_size,
-                max_s,
+                out,
+                cu_seqlen_q,
+                cu_seqlen_k,
                 None,
-                "auto",
-                1.0,
+                block_tables,
+                None,
+                max_s,
+                max_s,
+                0.0,
+                softmax_scale,
+                False,
+                True,
+                -1,
+                0,
+                False,
+                None,
             )
+
+            # ops.paged_attention_v1(
+            #     out,
+            #     query,
+            #     key_cache,
+            #     value_cache,
+            #     kv_head_mapping,
+            #     softmax_scale,
+            #     block_tables,
+            #     input_lengths,
+            #     block_size,
+            #     max_s,
+            #     None,
+            #     "auto",
+            #     1.0,
+            # )
         elif SYSTEM == "rocm":
             from vllm import attention_ops
 
@@ -142,24 +184,66 @@ def attention(
         if SYSTEM == "cuda":
             from vllm._C import ops
 
-            ops.paged_attention_v2(
-                out,
-                exp_sums,
-                max_logits,
-                tmp_output,
+            cu_seqlen_q = torch.arange(
+                input_lengths.shape[0] + 1, device=query.device, dtype=torch.int32
+            )
+            cu_seqlen_k = torch.cat(
+                [
+                    torch.zeros(
+                        (1,), device=input_lengths.device, dtype=input_lengths.dtype
+                    ),
+                    input_lengths.cumsum(dim=-1),
+                ]
+            ).to(dtype=torch.int32)
+
+            import flash_attn_2_cuda
+
+            num_blocks, num_heads_k, bs, block_size, head_size = key_cache.shape
+            key_cache = key_cache.view(num_blocks, block_size, num_heads_k, head_size)
+            value_cache = value_cache.view(
+                num_blocks, block_size, num_heads_k, head_size
+            )
+            # import ipdb;ipdb.set_trace()
+            flash_attn_2_cuda.varlen_fwd(
                 query,
                 key_cache,
                 value_cache,
-                kv_head_mapping,
-                softmax_scale,
-                block_tables,
-                input_lengths,
-                block_size,
-                max_s,
+                out,
+                cu_seqlen_q,
+                cu_seqlen_k,
                 None,
-                "auto",
-                1.0,
+                block_tables,
+                None,
+                max_s,
+                max_s,
+                0.0,
+                softmax_scale,
+                False,
+                True,
+                -1,
+                0,
+                False,
+                None,
             )
+
+            # ops.paged_attention_v2(
+            #     out,
+            #     exp_sums,
+            #     max_logits,
+            #     tmp_output,
+            #     query,
+            #     key_cache,
+            #     value_cache,
+            #     kv_head_mapping,
+            #     softmax_scale,
+            #     block_tables,
+            #     input_lengths,
+            #     block_size,
+            #     max_s,
+            #     None,
+            #     "auto",
+            #     1.0,
+            # )
         elif SYSTEM == "rocm":
             from vllm import attention_ops
 

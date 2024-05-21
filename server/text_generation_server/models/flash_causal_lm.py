@@ -756,17 +756,18 @@ class FlashCausalLM(Model):
         torch.cuda.synchronize()
 
         with torch.cuda.graph(graph, pool=MEM_POOL):
-            logits, speculative_logits = self.model.forward(
-                input_ids=input_ids,
-                position_ids=position_ids,
-                cu_seqlen_prefill=None,
-                kv_cache=kv_cache,
-                block_tables=block_tables,
-                slots=slots,
-                input_lengths=input_lengths,
-                max_s=max_s,
-                lm_head_indices=None,
-            )
+            with torch.inference_mode():
+                logits, speculative_logits = self.model.forward(
+                    input_ids=input_ids,
+                    position_ids=position_ids,
+                    cu_seqlen_prefill=None,
+                    kv_cache=kv_cache,
+                    block_tables=block_tables,
+                    slots=slots,
+                    input_lengths=input_lengths,
+                    max_s=max_s,
+                    lm_head_indices=None,
+                )
             self.cuda_graphs[bs]["logits"] = logits
             self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
         torch.cuda.synchronize()
@@ -791,11 +792,14 @@ class FlashCausalLM(Model):
             if SYSTEM == "rocm" and os.environ.get("PYTORCH_TUNABLEOP_ENABLED", False):
                 torch.cuda.tunable.tuning_enable(False)
             _, batch, _ = self.generate_token(batch)
-        except torch.cuda.OutOfMemoryError as e:
-            raise RuntimeError(
-                f"Not enough memory to handle {len(batch.input_ids)} prefill tokens. "
-                f"You need to decrease `--max-batch-prefill-tokens`"
-            ) from e
+        except RuntimeError as e:
+            if "CUDA error: out of memory" in e.args[0]:
+                raise RuntimeError(
+                    f"Not enough memory to handle {len(batch.input_ids)} prefill tokens. "
+                    f"You need to decrease `--max-batch-prefill-tokens`"
+                ) from e
+            else:
+                raise RuntimeError(e.args)
 
         synchronize(self.device)
 

@@ -456,20 +456,21 @@ class BaseFlashMistral(FlashCausalLM):
         torch.cuda.synchronize()
 
         with torch.cuda.graph(graph, pool=MEM_POOL):
-            logits, speculative_logits = self.model.forward(
-                input_ids=input_ids,
-                position_ids=position_ids,
-                cu_seqlen_prefill=None,
-                kv_cache=kv_cache,
-                block_tables=block_tables,
-                slots=slots,
-                input_lengths=input_lengths,
-                max_s=max_s,
-                prefill_cache_indices=None,
-                lm_head_indices=None,
-            )
-            self.cuda_graphs[bs]["logits"] = logits
-            self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
+            with torch.inference_mode():
+                logits, speculative_logits = self.model.forward(
+                    input_ids=input_ids,
+                    position_ids=position_ids,
+                    cu_seqlen_prefill=None,
+                    kv_cache=kv_cache,
+                    block_tables=block_tables,
+                    slots=slots,
+                    input_lengths=input_lengths,
+                    max_s=max_s,
+                    prefill_cache_indices=None,
+                    lm_head_indices=None,
+                )
+                self.cuda_graphs[bs]["logits"] = logits
+                self.cuda_graphs[bs]["speculative_logits"] = speculative_logits
         torch.cuda.synchronize()
 
     def forward(

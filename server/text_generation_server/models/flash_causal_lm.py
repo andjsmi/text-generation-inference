@@ -881,8 +881,12 @@ class FlashCausalLM(Model):
                 for bs in CUDA_GRAPHS:
                     if self.speculate is None or self.speculate + 1 <= bs:
                         self.cuda_graph_warmup(bs, max_s, max_bt)
-            except torch.cuda.OutOfMemoryError:
-                logger.exception(f"Decode cuda graph warmup failed")
+            except RuntimeError as e:
+                if "CUDA error: out of memory" in e.args[0]:
+                    logger.exception(f"Decode cuda graph warmup failed")
+                else:
+                    raise RuntimeError(e.args)
+                
         else:
             logger.info(f"Cuda Graphs are disabled (CUDA_GRAPHS={CUDA_GRAPHS}).")
 
